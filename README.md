@@ -1,4 +1,4 @@
-# Crptography made Easy: babySSH
+# Cryptography made Easy: babySSH
 ### A SSH implementation made so easy a baby can understand it
 #### *Warning! This is probably super insecure, frankly... dont use it for anything except educational purposes.*
 
