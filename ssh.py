@@ -11,14 +11,14 @@ import time
 
 attributions = """
 =============================================================================================
-  _____           _           _             _   _        _ _           _   _
- |  __ \         (_)         | |       /\  | | | |      (_) |         | | (_)
- | |__) | __ ___  _  ___  ___| |_     /  \ | |_| |_ _ __ _| |__  _   _| |_ _  ___  _ __  ___
- |  ___/ '__/ _ \| |/ _ \/ __| __|   / /\ \| __| __| '__| | '_ \| | | | __| |/ _ \| '_ \/ __|
- | |   | | | (_) | |  __/ (__| |_   / ____ \ |_| |_| |  | | |_) | |_| | |_| | (_) | | | \__ \
- |_|   |_|  \___/| |\___|\___|\__| /_/    \_\__|\__|_|  |_|_.__/ \__,_|\__|_|\___/|_| |_|___/
-                _/ |
-               |__/
+   ______          _           _    ___  _   _        _ _           _   _
+   | ___ \        (_)         | |  / _ \| | | |      (_) |         | | (_)
+   | |_/ / __ ___  _  ___  ___| |_/ /_\ \ |_| |_ _ __ _| |__  _   _| |_ _  ___  _ __  ___
+   |  __/ '__/ _ \| |/ _ \/ __| __|  _  | __| __| '__| | '_ \| | | | __| |/ _ \| '_ \/ __|
+   | |  | | | (_) | |  __/ (__| |_| | | | |_| |_| |  | | |_) | |_| | |_| | (_) | | | \__ \
+   \_|  |_|  \___/| |\___|\___|\__\_| |_/\__|\__|_|  |_|_.__/ \__,_|\__|_|\___/|_| |_|___/
+                 _/ |
+                |__/
 =============================================================================================
 Front-End and Messaging Protocol:                                             Rishika Mohanta
 Diffie Hellman :                                                               Ramya Narayanan
@@ -30,6 +30,8 @@ BabyDES:                                                                     All
 def exit_handler():
     if os.path.exists('hacker.log'):
         os.remove('hacker.log')
+    if os.path.exists('hacker_decompressed.log'):
+        os.remove('hacker_decompressed.log')
     print(attributions)
 
 atexit.register(exit_handler)
@@ -37,6 +39,7 @@ atexit.register(exit_handler)
 ## Setup Messaging Protocol ##
 # Listener #
 def listen():
+
     keep_listening = True
     while keep_listening:
         if os.path.exists(f"{IP}/port{port}/server2client.message"):
@@ -45,26 +48,41 @@ def listen():
             keep_listening = False
             os.remove(f"{IP}/port{port}/server2client.message")
         time.sleep(0.5)
+
     print(f"Message Received: '{message}'")
+
     message = decompress(message)
     if showcompression:
         print(f"Decompressed Message: '{message}'")
+
     if bDESkey is not None:
         message = bd.bDES_decryption(message,bDESkey)
+        message,mac = message.split("||")
         print(f"Decrypted Message: {message}")
+        if hsh.MAC(message,bDESkey) == mac:
+            print(f"Message is authentic")
+        else:
+            print(f"Message is not authentic. You are under attack.")
+            quit()
+
     return message
 # Messenger #
 def send(message):
+
     message = str(message)
-    busy = True
     if bDESkey is not None:
+        message = message+"||"+hsh.MAC(message,bDESkey)
         print(f"Encrypting reply: '{message}'...")
         message = bd.bDES_encryption(message,bDESkey)
+
     if showcompression:
         print(f"Compressing reply: '{message}'...")
+
     message = compress(message)
     print(f"Sending Message: '{message}'...",end='')
+
     t0= time.time()
+    busy = True
     while busy:
         if not os.path.exists(f"{IP}/port{port}/client2server.message"):
             with open(f"{IP}/port{port}/client2server.message", "w") as f:
@@ -74,6 +92,7 @@ def send(message):
         if time.time()-t0 > 60:
             print("Sending Failed. Client Unresponsive.")
             return
+
     hackerlog(message)
     print("Sent")
 
@@ -154,7 +173,7 @@ else:
 # 2. Diffie hellman for Key exchange
 # 3. BabyDES for Symmetric Encryption
 # 4. Knuth Variant on Division Method for Hash
-# Further, we skip both MAC and compression
+# 5. Simplified HMAC algorithm
 
 print("Connecting with {user}@{IP}:{port}".format(user=user,IP=IP,port=port))
 
@@ -190,11 +209,13 @@ send("init:keyexchange")
 # exchange p, g and public message #
 p,g,pubm_server = [int(i) for i in listen().split(":")]
 privatekey_client = np.random.randint(2,high=p-1)
+print("Private key generated.")
 pubm_client = dh.genPublicMessage(p,g,privatekey_client)
 send(f"{pubm_client}")
 
 # generate shared key using the DH key as the seed for the pseudorandom number generator #
 sharedkey = dh.genSharedKey(p,pubm_server,privatekey_client)
+print("Shared key generated.")
 np.random.seed(sharedkey)
 bDESkey = list(np.random.choice([False,True],size=9))
 np.random.seed()
@@ -211,7 +232,7 @@ processboolean()
 with open('client/.ssh/id_rsa.pub', "r") as f:
     pubkey_client = f.read()
 
-# send authenication request #
+# send authentication request #
 send(f"authenticate:{pubkey_client}")
 
 # check if the client key is authorised, otherwise add to authorized with password #
@@ -227,6 +248,7 @@ if "Key is not authorized" == reply:
 # start authencation protocol using RSA and Hash#
 if "Key is authorized" == reply:
     authentication_code = int(listen())
+    print("Authentication message received.")
 
     with open('client/.ssh/id_rsa', "r") as f:
         prikey_client = f.read()
@@ -234,20 +256,28 @@ if "Key is authorized" == reply:
     prikey_client = int(prikey_client[0]),int(prikey_client[1])
 
     authentication_code = rsa.RSA_decrypt(authentication_code,prikey_client)
+    print("Authentication message decrypted.")
+
     authentication_code += sum([int(bDESkey[i])*2**i for i in range(len(bDESkey))])
     hashed_code = hsh.hash_it(authentication_code)
+    print("Hash generated.")
+
     send(hashed_code)
     reply = listen()
     if reply == "Authentication failed":
         print("Authentication failed. Closing BabySSH client.")
         quit()
-    elif reply == "Authenication successful":
+    elif reply == "Authentication successful":
         print(f"Authenticated {user}. Welcome to {IP}!")
+    else:
+        print("Authentication failed. Closing BabySSH client.")
+        quit()
 
 # Start remote connection pipe #
 while True:
     message = input(f"{user}@{IP}:")
     if message == "exit":
+        print("Closing BabySSH client.")
         send("exit")
         quit()
     if message == "":

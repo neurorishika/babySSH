@@ -11,14 +11,14 @@ import time
 
 attributions = """
 =============================================================================================
-  _____           _           _             _   _        _ _           _   _
- |  __ \         (_)         | |       /\  | | | |      (_) |         | | (_)
- | |__) | __ ___  _  ___  ___| |_     /  \ | |_| |_ _ __ _| |__  _   _| |_ _  ___  _ __  ___
- |  ___/ '__/ _ \| |/ _ \/ __| __|   / /\ \| __| __| '__| | '_ \| | | | __| |/ _ \| '_ \/ __|
- | |   | | | (_) | |  __/ (__| |_   / ____ \ |_| |_| |  | | |_) | |_| | |_| | (_) | | | \__ \
- |_|   |_|  \___/| |\___|\___|\__| /_/    \_\__|\__|_|  |_|_.__/ \__,_|\__|_|\___/|_| |_|___/
-                _/ |
-               |__/
+   ______          _           _    ___  _   _        _ _           _   _
+   | ___ \        (_)         | |  / _ \| | | |      (_) |         | | (_)
+   | |_/ / __ ___  _  ___  ___| |_/ /_\ \ |_| |_ _ __ _| |__  _   _| |_ _  ___  _ __  ___
+   |  __/ '__/ _ \| |/ _ \/ __| __|  _  | __| __| '__| | '_ \| | | | __| |/ _ \| '_ \/ __|
+   | |  | | | (_) | |  __/ (__| |_| | | | |_| |_| |  | | |_) | |_| | |_| | (_) | | | \__ \
+   \_|  |_|  \___/| |\___|\___|\__\_| |_/\__|\__|_|  |_|_.__/ \__,_|\__|_|\___/|_| |_|___/
+                 _/ |
+                |__/
 =============================================================================================
 Front-End and Messaging Protocol:                                             Rishika Mohanta
 Diffie Hellman :                                                               Ramya Narayanan
@@ -28,8 +28,10 @@ BabyDES:                                                                     All
 =============================================================================================
 """
 def exit_handler():
-    if not os.path.exists('hacker.log'):
+    if os.path.exists('hacker.log'):
         os.remove('hacker.log')
+    if os.path.exists('hacker_decompressed.log'):
+        os.remove('hacker_decompressed.log')
     print(attributions)
 
 atexit.register(exit_handler)
@@ -37,6 +39,7 @@ atexit.register(exit_handler)
 ## Setup Messaging Protocol ##
 # Listener #
 def listen():
+
     keep_listening = True
     while keep_listening:
         if os.path.exists(f"{IP}/port{port}/client2server.message"):
@@ -45,26 +48,41 @@ def listen():
             keep_listening = False
             os.remove(f"{IP}/port{port}/client2server.message")
         time.sleep(0.5)
+
     print(f"Message Received: '{message}'")
+
     message = decompress(message)
     if showcompression:
         print(f"Decompressed Message: '{message}'")
+
     if bDESkey is not None:
         message = bd.bDES_decryption(message,bDESkey)
+        message,mac = message.split("||")
         print(f"Decrypted Message: {message}")
+        if hsh.MAC(message,bDESkey) == mac:
+            print(f"Message is authentic")
+        else:
+            print(f"Message is not authentic. You are under attack.")
+            quit()
+
     return message
 # Messenger #
 def reply(message):
+
     message = str(message)
-    busy = True
     if bDESkey is not None:
+        message = message+"||"+hsh.MAC(message,bDESkey)
         print(f"Encrypting reply: '{message}'...")
         message = bd.bDES_encryption(message,bDESkey)
+
     if showcompression:
         print(f"Compressing reply: '{message}'...")
     message = compress(message)
+
     print(f"Sending Reply: '{message}'...",end='')
+
     t0= time.time()
+    busy = True
     while busy:
         if not os.path.exists(f"{IP}/port{port}/server2client.message"):
             with open(f"{IP}/port{port}/server2client.message", "w") as f:
@@ -74,6 +92,7 @@ def reply(message):
         if time.time()-t0 > 60:
             print("Sending Failed. Client Unresponsive.")
             return
+
     hackerlog(message)
     print("Sent")
 
@@ -161,6 +180,7 @@ while True:
         showcompression = False
     # respond to public key request #
     if message == "request:publickey":
+        print("Sending Server Public Key.")
         with open(f'{IP}/{user}/.ssh/id_rsa.pub', "r") as f:
             pubkey_server = f.read()
         reply(pubkey_server)
@@ -169,11 +189,14 @@ while True:
     elif message == "init:keyexchange":
         p = dh.getSafePrime(digits)
         g = dh.getPrimitiveRoot(p)
+        print("Safe prime and primitive root generated.")
         privatekey_server = np.random.randint(2,high=p-1)
+        print("Private key generated.")
         pubm_server = dh.genPublicMessage(p,g,privatekey_server)
         reply(f"{p}:{g}:{pubm_server}")
         pubm_client = int(listen())
         sharedkey = dh.genSharedKey(p,pubm_client,privatekey_server)
+        print("Shared key generated.")
         np.random.seed(sharedkey)
         bDESkey = list(np.random.choice([False,True],size=9))
         np.random.seed()
@@ -197,10 +220,13 @@ while True:
         pubkey_client = int(pubkey_client[0]),int(pubkey_client[1])
 
         authentication_code = np.random.randint(1000, 9999)
+        print("Authentication message generated.")
         authentication_code_enc = rsa.RSA_encrypt(authentication_code, pubkey_client)
+        print("Authentication message encrpyted.")
         reply(f"{authentication_code_enc}")
         authentication_code += sum([int(bDESkey[i])*2**i for i in range(len(bDESkey))])
         hashed_code = hsh.hash_it(authentication_code)
+        print("Hash generated.")
         if str(hashed_code) == listen():
             reply("Authentication successful")
             authenticated = True
