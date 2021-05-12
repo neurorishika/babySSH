@@ -220,7 +220,7 @@ while True:
         pubkey_client = pubkey_client.split(":")
         pubkey_client = int(pubkey_client[0]),int(pubkey_client[1])
 
-        authentication_code = np.random.randint(1000, 9999)
+        authentication_code = np.random.randint(10**(digits-1), 10**digits)
         print("Authentication message generated.")
         authentication_code_enc = rsa.RSA_encrypt(authentication_code, pubkey_client)
         print("Authentication message encrpyted.")
