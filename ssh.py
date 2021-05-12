@@ -72,11 +72,11 @@ def send(message):
     message = str(message)
     if bDESkey is not None:
         message = message+"||"+hsh.MAC(message,bDESkey)
-        print(f"Encrypting reply: '{message}'...")
+        print(f"Encrypting Message: '{message}'...")
         message = bd.bDES_encryption(message,bDESkey)
 
     if showcompression:
-        print(f"Compressing reply: '{message}'...")
+        print(f"Compressing Message: '{message}'...")
 
     message = compress(message)
     print(f"Sending Message: '{message}'...",end='')
@@ -154,6 +154,7 @@ KEYEX_ALGORITHM:DIFFIEHELLMAN
 PUBKEYENC_ALGORITHM:RSA
 SYMKEYENC_ALGORITHM:BABYDES
 HASH_ALGORITHM:KNUTHVARIANTDIVISION
+MAC_ALGORITHM:SIMPLIFIEDHMAC
 COMPRESSION:ZLIB
 """
 print(startmessage)

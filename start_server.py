@@ -171,6 +171,7 @@ KEYEX_ALGORITHM:DIFFIEHELLMAN
 PUBKEYENC_ALGORITHM:RSA
 SYMKEYENC_ALGORITHM:BABYDES
 HASH_ALGORITHM:KNUTHVARIANTDIVISION
+MAC_ALGORITHM:SIMPLIFIEDHMAC
 COMPRESSION:ZLIB""".format(IP=IP,port=port)
 print(startmessage)
 
@@ -228,9 +229,11 @@ while True:
         hashed_code = hsh.hash_it(authentication_code)
         print("Hash generated.")
         if str(hashed_code) == listen():
+            print("Hash matches.")
             reply("Authentication successful")
             authenticated = True
         else:
+            print("Hash dont match.")
             reply("Authentication failed")
 
     # respond to exit request #
