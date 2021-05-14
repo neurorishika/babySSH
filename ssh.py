@@ -199,7 +199,7 @@ else:
     if processboolean():
         with open('client/.ssh/known_hosts', "a") as f:
             f.write(f"{IP} {pubkey_server}")
-    print("Public key added to known_hosts.")
+        print("Public key added to known_hosts.")
 
 print("Continue with Key Exchange (y/n)?",end="")
 processboolean()
